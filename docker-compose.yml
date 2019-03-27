@@ -1,0 +1,22 @@
+version: "2"
+services:
+  app:
+    build: ./app
+    links:
+      - db
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app/ytarchive:/ytarchive
+      - /transfers:/transfers
+    env_file:
+      - ./app/app.env
+
+  db:
+    image: mysql:5.7
+    ports:
+      - "32000:3306"
+    env_file:
+      - ./db.env
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d/:ro

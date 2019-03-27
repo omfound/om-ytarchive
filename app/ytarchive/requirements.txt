@@ -1,0 +1,9 @@
+Flask
+mysqlclient
+configparser
+pprint
+requests
+internetarchive
+pytest
+sqlalchemy
+marshmallow-sqlalchemy
