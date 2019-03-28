@@ -87,8 +87,7 @@ def prepare_archive_metadata(session):
         description = ''
 
     metadata = dict(
-        # TODO: collection=item["archive_collection_id"],
-        collection="test_collection",
+        collection=session.archive_collection_id,
         title=session.title,
         description=description,
         date=str(isodate),
