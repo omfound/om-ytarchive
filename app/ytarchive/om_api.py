@@ -49,10 +49,9 @@ class Sessions(OmApi):
 
         session_data = requests.get(session_url)
         session = session_data.json()
-
         return session
 
-    def list(self, site_id=None, updated_after=None, video_processed=None):
+    def list(self, site_id=None, updated_after=None, video_processed=None, archived=None, created_after=None):
         # craft endpoint
         sessions_url = self.api_url
         if not site_id:
@@ -63,7 +62,11 @@ class Sessions(OmApi):
         # build params
         filters = {}
         if updated_after:
-            filters["updatedAfter"] = str(updated_after)
+            filters['updatedAfter'] = str(updated_after)
+        if archived:
+            filters['archived'] = archived
+        if created_after:
+            filters['createdAfter'] = str(created_after)
 
         sessions_data = requests.get(sessions_url, params=filters)
         sessions = sessions_data.json()
@@ -80,8 +83,12 @@ class Sessions(OmApi):
                         results.append(session)
         else:
             results = sessions["results"]
-
         return results
+
+    def updateArchiveId(self, session_id, archive_id):
+        sessions_url = self.api_url + "/sessions/" + str(session_id)
+        sessions_url += "?key=" + self.api_key
+        requests.post(sessions_url, data={'archive_id': archive_id})
 
 
 class SessionVideo(OmApi):

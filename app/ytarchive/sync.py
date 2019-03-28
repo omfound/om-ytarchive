@@ -9,6 +9,7 @@ from datetime import datetime
 from db import ytarchive
 from log import log
 from os import path
+import om_api
 
 
 def update_session_status(session, status, archive_id=False):
@@ -123,6 +124,10 @@ def prepare_archive_file_names(session_files):
     return files
 
 
+def update_remote_archive_id(session_id, archive_id):
+    om_api.Sessions().updateArchiveId(session_id=session_id, archive_id=archive_id)
+
+
 def archive_create_new(archive_id, files, metadata, session, session_files):
     success = True
 
@@ -135,6 +140,7 @@ def archive_create_new(archive_id, files, metadata, session, session_files):
             log(session_file, "Failed to upload file to archive.org: " + r[0].reason, c.SESSION_FAILED, c.LOG_ERROR)
     else:
         update_session_status(session, c.SESSION_SYNCED, archive_id)
+        update_remote_archive_id(session.id, archive_id)
         log(session, "Session added to archive.org", c.SESSION_SYNCED)
     return success
 

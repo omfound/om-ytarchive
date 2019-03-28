@@ -8,21 +8,35 @@ from models import Session, VideoFile, CaptionFile, CuepointFile, DocumentFile
 from log import log
 
 
-def get_live_sessions(site, last_run_time):
+def get_live_sessions(site, stored_sessions, last_run_time, created_after):
     """Get sessions from Open.Media API, optionally after the last harvest run
     time
     """
-    if last_run_time:
+
+    # start with brand new sessions
+    sessions = om_api.Sessions().list(
+        site_id=site['site_id'],
+        archived="false",
+        created_after=created_after,
+        video_processed=True)
+    sessions = remove_stored_sessions(sessions, stored_sessions)
+
+    # no new sessions, check for updated existing ones
+    if len(sessions) <= 0:
         sessions = om_api.Sessions().list(
-            site_id=site["site_id"],
+            site_id=site['site_id'],
+            archived="true",
             updated_after=last_run_time,
             video_processed=True)
-    else:
-        sessions = om_api.Sessions().list(
-            site_id=site["site_id"],
-            video_processed=True)
-
     return sessions
+
+
+def remove_stored_sessions(sessions, stored_sessions):
+    new_sessions = []
+    for index, session in enumerate(sessions):
+        if int(session['id']) not in stored_sessions:
+            new_sessions.append(session)
+    return new_sessions
 
 
 def get_stored_sessions(site):
@@ -266,7 +280,7 @@ def session_processing_completed(session, current_state, stored_sessions):
         return False
 
 
-def store_sessions(site, last_run_time):
+def store_sessions(site, last_run_time, created_after):
     """Loop through all sessions that have changed since last harvest run and
     update their status in the youtube_archive MySQL database
     """
@@ -275,7 +289,7 @@ def store_sessions(site, last_run_time):
     stored_sessions = dict_by_id(stored_sessions)
 
     # live sessions that have been updated after the last harvest run
-    sessions = get_live_sessions(site, last_run_time)
+    sessions = get_live_sessions(site, stored_sessions, last_run_time, created_after)
     sessions = sessions_map_sessions(sessions)
     results = {'new': [], 'updated': []}
 
@@ -305,11 +319,11 @@ def store_sessions(site, last_run_time):
 
 def last_run_time(site):
     """Get the unix timestamp from the last harvest run for a given site"""
-    results = ytarchive().logsGet(id=None, params={'site_id': site["site_id"], 'type': 'harvest_run', 'state': 'harvesting', 'sort': 'time:desc', 'limit': 1})
+    results = ytarchive().logsGet(id=None, params={'site_id': site['site_id'], 'type': 'harvest_run', 'state': 'harvesting', 'sort': 'time:desc', 'limit': 1})
     if results:
         return results[0].time
     else:
-        return False
+        return time.time()
 
 
 def log_harvest_run_start(site):
@@ -343,12 +357,14 @@ def harvest():
     collection then store new and updated session information
     """
     sites = om_api.Sites().list(has_archive_collection=True)
+    # 1514764800 = start of 2018
+    created_after = 1514764800
 
     for site in sites:
-        if site['site_id'] == '1':
+        if site['site_id'] == '382':
             the_last_run_time = last_run_time(site)
             log_harvest_run_start(site)
-            results = store_sessions(site, the_last_run_time)
+            results = store_sessions(site, the_last_run_time, created_after)
             log_harvest_run_end(site, len(results["new"]), len(results["updated"]), 0)
 
 

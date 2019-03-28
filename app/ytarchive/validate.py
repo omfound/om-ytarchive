@@ -5,7 +5,6 @@ from internetarchive import get_item
 from log import log
 from db import ytarchive
 from os import path
-from pprint import pprint
 import shutil
 
 
@@ -13,8 +12,6 @@ def validate_files(session_files, archive_info):
     """Loop through session item files and check if Open.Media API MD5 matches
     the MD5 stored on Archive.org"""
     session_success = True
-    pprint(archive_info)
-    pprint(session_files)
 
     for session_file in session_files:
         session_file_exists = False
