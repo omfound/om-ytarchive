@@ -10,6 +10,9 @@ from db import ytarchive
 from log import log
 from os import path
 import om_api
+import requests
+from args import get_args
+from subprocess import call
 
 
 def update_session_status(session, status, archive_id=False):
@@ -92,7 +95,7 @@ def prepare_archive_metadata(session):
         description=description,
         date=str(isodate),
         contributor=session.group,
-        creator="http://open.media",
+        creator="https://open.media",
         mediatype="movies",
         language="eng",
         licenseurl="https://creativecommons.org/licenses/by-sa/4.0/",
@@ -127,37 +130,58 @@ def update_remote_archive_id(session_id, archive_id):
     om_api.Sessions().updateArchiveId(session_id=session_id, archive_id=archive_id)
 
 
-def archive_create_new(archive_id, files, metadata, session, session_files):
+def fix_pdf_files(files):
+    """Use mutool to attempt to repair a corrupted pdf file"""
+    for filepath in files:
+        if ".pdf" in filepath:
+            mutool_command = "mutool clean " + filepath + " " + filepath
+            print("Attempting to fix: " + filepath)
+            call(mutool_command, shell=True)
+
+
+def get_file_from_filepath(filepath, files):
+    file_match = None
+    for file in files:
+        if file.filepath == filepath:
+            file_match = file
+    return file_match
+
+
+def archive_create(archive_id, files, metadata, session, session_files, archive_item_created=False):
     success = True
 
-    r = upload(archive_id, files, metadata)
-    if r[0].status_code != 200:
-        success = False
-        log(session, "Failed to add new session to archive.org: " + r[0].reason, c.SESSION_FAILED, c.LOG_ERROR)
-        for session_file in session_files:
-            update_file_status(session_file, c.FILE_FAILED)
-            log(session_file, "Failed to upload file to archive.org: " + r[0].reason, c.SESSION_FAILED, c.LOG_ERROR)
-    else:
+    for filepath in files:
+        active_file = get_file_from_filepath(filepath, session_files)
+        file_uploaded = True
+        try:
+            if not archive_item_created:
+                r = upload(archive_id, [filepath], metadata)
+            else:
+                r = upload(archive_id, [filepath])
+        except requests.exceptions.HTTPError as err:
+            file_uploaded = False
+            update_file_status(active_file, c.FILE_FAILED)
+            log(active_file, 'Failed to upload file to archive.org: ' + str(err), c.FILE_FAILED, c.LOG_ERROR)
+            if active_file.type == 'video':
+                success = False
+                log(session, "Failed to add new session to archive.org: " + str(err), c.SESSION_FAILED, c.LOG_ERROR)
+                return success
+
+        if r[0].status_code != 200 or not file_uploaded:
+            log(active_file, "Failed to upload file to archive.org: " + r[0].reason, c.FILE_FAILED, c.LOG_ERROR)
+            if active_file.type == 'video':
+                success = False
+                log(session, "Failed to add new session to archive.org: " + r[0].reason, c.SESSION_FAILED, c.LOG_ERROR)
+                return success
+        else:
+            archive_item_created = True
+            log(active_file, "File uploaded to archive.org", c.FILE_SYNCED)
+            update_file_status(active_file, c.FILE_SYNCED)
+
+    if success:
         update_session_status(session, c.SESSION_SYNCED, archive_id)
         update_remote_archive_id(session.id, archive_id)
         log(session, "Session added to archive.org", c.SESSION_SYNCED)
-    return success
-
-
-def archive_update_files(archive_id, files, metadata, session, session_files):
-    success = True
-
-    r = upload(archive_id, files)
-    if r[0].status_code != 200:
-        success = False
-        log(session, "Failed to update files on archive.org: " + r[0].reason, c.SESSION_FAILED, c.LOG_ERROR)
-        for session_file in session_files:
-            update_file_status(session_file, c.FILE_FAILED)
-            log(session_file, "Failed to update file on archive.org: " + r[0].reason, c.SESSION_FAILED, c.LOG_ERROR)
-    else:
-        log(session, "Session files updated on archive.org", c.SESSION_SYNCED)
-        for session_file in session_files:
-            log(session_file, "File updated on archive.org", c.FILE_SYNCED)
     return success
 
 
@@ -186,18 +210,12 @@ def archive_update(archive_id, session, session_files, archive_info=False):
     # not on archive.org, can send metadata and files all at once
     # otherwise we have to send them seperately
     if not session.archive_id and files:
-        result = archive_create_new(archive_id, files, metadata, session, session_files)
-        if not result:
-            success = False
+        success = archive_create(archive_id, files, metadata, session, session_files)
     elif session.archive_id:
-        if files:
-            result = archive_update_files(archive_id, files, metadata, session, session_files)
-            if not result:
-                success = False
         if metadata_changed(metadata, archive_info, session):
-            result = archive_update_metadata(archive_id, metadata)
-            if not result:
-                success = False
+            success = archive_update_metadata(archive_id, metadata)
+        if files:
+            success = archive_update_files(archive_id, files, metadata, session, session_files, archive_item_created=True)
     return success
 
 
@@ -236,7 +254,12 @@ def session_archive_id(session):
 
 
 def sync():
-    session = ytarchive().sessionsGet(id=None, params={'state': c.SESSION_PROCESSED, 'sort': 'last_updated:asc', 'limit': 1})
+    args = get_args()
+
+    if 'site_id' in args and args.site_id:
+        session = ytarchive().sessionsGet(id=None, params={'state': c.SESSION_PROCESSED, 'site_id': args.site_id, 'sort': 'last_updated:asc', 'limit': 1})
+    else:
+        session = ytarchive().sessionsGet(id=None, params={'state': c.SESSION_PROCESSED, 'sort': 'last_updated:asc', 'limit': 1})
 
     if session:
         update_session_status(session, c.SESSION_SYNCING)
@@ -259,17 +282,9 @@ def sync():
         if removed_session_files:
             delete_success = archive_delete_removed_files(archive_id, removed_session_files, session)
 
-        # if successful mark synced for next validation step
-        if update_success:
-            update_session_status(session, c.SESSION_SYNCED)
-            if session_files:
-                for session_file in session_files:
-                    update_file_status(session_file, c.FILE_SYNCED)
-
-        if delete_success and update_success:
-            update_session_status(session, c.SESSION_SYNCED)
-        else:
+        if not delete_success:
             update_session_status(session, c.SESSION_FAILED)
+            log(session, "Failed to delete items from archive.org", c.SESSION_FAILED, c.LOG_ERROR)
 
 
 sync()

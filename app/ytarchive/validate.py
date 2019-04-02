@@ -6,6 +6,7 @@ from log import log
 from db import ytarchive
 from os import path
 import shutil
+from args import get_args
 
 
 def validate_files(session_files, archive_info):
@@ -14,30 +15,31 @@ def validate_files(session_files, archive_info):
     session_success = True
 
     for session_file in session_files:
-        session_file_exists = False
-        for archive_file in archive_info.item_metadata["files"]:
-            session_file_name = path.basename(session_file.filepath)
-            if archive_file["md5"] == session_file.md5 and archive_file["name"] == session_file_name:
-                if session_file.state == c.FILE_SYNCED:
-                    update_session_file_validation(session_file, True)
-                    log(session_file, "File validated", c.FILE_SYNCED)
-                    session_file_exists = True
-                elif session_file.state == c.FILE_DELETED:
-                    update_session_file_validation(session_file, False)
-                    update_session_file_status(session_file, c.FILE_FAILED)
-                    log(session_file, 0, "File not validated, deleted file exists on archive.org", c.FILE_FAILED)
-                    session_file_exists = True
-                    session_success = False
+        if session_file.state != c.FILE_FAILED:
+            session_file_exists = False
+            for archive_file in archive_info.item_metadata["files"]:
+                session_file_name = path.basename(session_file.filepath)
+                if 'md5' in archive_file and archive_file['md5'] == session_file.md5 and archive_file['name'] == session_file_name:
+                    if session_file.state == c.FILE_SYNCED:
+                        update_session_file_validation(session_file, True)
+                        log(session_file, "File validated", c.FILE_SYNCED)
+                        session_file_exists = True
+                    elif session_file.state == c.FILE_DELETED:
+                        update_session_file_validation(session_file, False)
+                        update_session_file_status(session_file, c.FILE_FAILED)
+                        log(session_file, 0, "File not validated, deleted file exists on archive.org", c.FILE_FAILED)
+                        session_file_exists = True
+                        session_success = False
 
-        if not session_file_exists:
-            if session_file.state == c.FILE_DELETED:
-                update_session_file_validation(session_file, True)
-                log(session_file, "File validated", c.FILE_DELETED)
-            else:
-                update_session_file_status(session_file, c.FILE_FAILED)
-                update_session_file_validation(session_file, False)
-                log(session_file, "File not validated, no hash match", c.FILE_FAILED, c.LOG_ERROR)
-                session_success = False
+            if not session_file_exists:
+                if session_file.state == c.FILE_DELETED:
+                    update_session_file_validation(session_file, True)
+                    log(session_file, "File validated", c.FILE_DELETED)
+                else:
+                    update_session_file_status(session_file, c.FILE_FAILED)
+                    update_session_file_validation(session_file, False)
+                    log(session_file, "File not validated, no hash match", c.FILE_FAILED, c.LOG_ERROR)
+                    session_success = False
 
     return session_success
 
@@ -61,9 +63,14 @@ def cleanup_files(session):
 
 
 def validate():
+    site_id = None
+    args = get_args()
+    if 'site_id' in args and args.site_id:
+        site_id = args.site_id
+
     """Check all synced files to make sure their md5 hash matches the hash
     stored on Archive.org"""
-    synced_session = ytarchive().sessionsGetSyncedOldest()
+    synced_session = ytarchive().sessionsGetSyncedOldest(site_id)
 
     if synced_session:
         archive_info = get_item(synced_session.archive_id)

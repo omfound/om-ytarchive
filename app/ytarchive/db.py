@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# just testing 2
 
 import configparser
 from os import path
@@ -39,21 +38,29 @@ class ytarchive():
         self.db.close()
         return results
 
-    def sessionsGetChangedOldest(self):
+    def sessionsGetChangedOldest(self, site_id=None):
         query = self.db.query(Session)
         query = query.filter(or_(Session.state == c.SESSION_NEW, Session.state == c.SESSION_CHANGED))
         query = query.order_by(getattr(Session, 'last_updated').asc())
         query = query.limit(1)
+
+        if site_id:
+            query = query.filter(Session.site_id == site_id)
+
         results = query.first()
         self.db.close()
         return results
 
-    def sessionsGetSyncedOldest(self):
+    def sessionsGetSyncedOldest(self, site_id=None):
         query = self.db.query(Session)
         query = query.filter(or_(Session.state == c.SESSION_SYNCED, Session.state == c.SESSION_DELETED))
         query = query.filter(Session.validated == 0)
         query = query.order_by(getattr(Session, 'last_updated').asc())
         query = query.limit(1)
+
+        if site_id:
+            query = query.filter(Session.site_id == site_id)
+
         results = query.first()
         self.db.close()
         return results
@@ -144,6 +151,7 @@ class ytarchive():
         query = self.db.query(File)
         query = query.filter(File.session_id == session_id)
         query = query.filter(or_(File.state == c.FILE_SYNCED, File.state == c.FILE_DELETED))
+        query = query.filter(File.validated == False)  # noqa: E712
         results = query.all()
         self.db.close()
         return results

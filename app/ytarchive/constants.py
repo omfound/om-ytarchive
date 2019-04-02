@@ -1,3 +1,4 @@
+SESSION_UNMANAGED = "unmanaged"
 SESSION_NEW = "new"
 SESSION_FETCHING = "fetching"
 SESSION_FETCHED = "fetched"
@@ -9,6 +10,7 @@ SESSION_CHANGED = "changed"
 SESSION_REMOVED = "removed"
 SESSION_DELETED = "deleted"
 SESSION_FAILED = "failed"
+SESSION_SKIPPED = "skipped"
 
 FILE_UNHARVESTED = "unharvested"
 FILE_NEW = "new"

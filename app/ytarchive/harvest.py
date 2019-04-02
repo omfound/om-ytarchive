@@ -6,6 +6,7 @@ from db import ytarchive
 import om_api
 from models import Session, VideoFile, CaptionFile, CuepointFile, DocumentFile
 from log import log
+from args import get_args
 
 
 def get_live_sessions(site, stored_sessions, last_run_time, created_after):
@@ -237,13 +238,19 @@ def session_map_item(site, session, stored_sessions, state):
         'state': state,
         'validated': 0}
 
+    if session.archive_id:
+        item['archive_id'] = session.archive_id
+
     return item
 
 
 def session_current_state(session, stored_sessions):
     """Get the current state for a session based on live and stored copy"""
     if session.id not in stored_sessions:
-        current_state = c.SESSION_NEW
+        if session.archive_id:
+            current_state = c.SESSION_UNMANAGED
+        else:
+            current_state = c.SESSION_NEW
     else:
         current_state = stored_sessions[session.id].state
     return current_state
@@ -253,6 +260,8 @@ def session_next_state(current_state):
     """Get the next state for a session"""
     if current_state == c.SESSION_NEW:
         next_state = c.SESSION_NEW
+    elif current_state == c.SESSION_UNMANAGED:
+        next_state = c.SESSION_SKIP
     # all sessions that are not new must have been changed as they would
     # otherwise not show up in the api call
     else:
@@ -264,6 +273,10 @@ def session_state_message(state):
     """Determine log message based on session state"""
     if state == c.SESSION_NEW:
         message = "New session"
+    elif state == c.SESSION_UNMANAGED:
+        message = "Session archive information is being manually managed"
+    elif state == c.SESSION_SKIPPED:
+        message = "Skipping updated unmanaged session"
     else:
         message = "Session changed"
     return message
@@ -291,7 +304,7 @@ def store_sessions(site, last_run_time, created_after):
     # live sessions that have been updated after the last harvest run
     sessions = get_live_sessions(site, stored_sessions, last_run_time, created_after)
     sessions = sessions_map_sessions(sessions)
-    results = {'new': [], 'updated': []}
+    results = {'new': [], 'updated': [], 'skipped': []}
 
     for session in sessions:
         current_state = session_current_state(session, stored_sessions)
@@ -303,6 +316,13 @@ def store_sessions(site, last_run_time, created_after):
             ytarchive().sessionsInsert(item)
             results['new'].append(session)
             store_files(session)
+        # session is new but already has archive information so we avoid it
+        elif next_state == c.SESSION_UNMANAGED:
+            item = session_map_item(site, session, stored_sessions, c.SESSION_UNMANAGED)
+            ytarchive().sessionsInsert(item)
+            results['skipped'].append(session)
+        elif next_state == c.SESSION_SKIPPED:
+            results['skipped'].append(session)
         # session has been previously imported, check for updates
         else:
             # only update if the session has been changed since last import
@@ -352,20 +372,34 @@ def log_harvest_run_end(site, items_added, items_updated, items_deleted):
         'state': 'harvested'})
 
 
+def get_sites(args):
+    final_sites = []
+    site_ids = ['382', '400']
+    if args.site:
+        site_ids = [str(args.site)]
+
+    sites = om_api.Sites().list(has_archive_collection=True)
+
+    for site in sites:
+        if site['site_id'] in site_ids:
+            final_sites.append(site)
+
+    return final_sites
+
+
 def harvest():
     """Grab all sites from Open.Media API that have a defined archive.org
     collection then store new and updated session information
     """
-    sites = om_api.Sites().list(has_archive_collection=True)
+    args = get_args()
+    sites = get_sites(args)
     # 1514764800 = start of 2018
     created_after = 1514764800
-
     for site in sites:
-        if site['site_id'] == '382':
-            the_last_run_time = last_run_time(site)
-            log_harvest_run_start(site)
-            results = store_sessions(site, the_last_run_time, created_after)
-            log_harvest_run_end(site, len(results["new"]), len(results["updated"]), 0)
+        the_last_run_time = last_run_time(site)
+        log_harvest_run_start(site)
+        results = store_sessions(site, the_last_run_time, created_after)
+        log_harvest_run_end(site, len(results["new"]), len(results["updated"]), 0)
 
 
 harvest()

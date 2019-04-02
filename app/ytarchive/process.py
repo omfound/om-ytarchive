@@ -8,6 +8,7 @@ import hashlib
 from subprocess import call
 from db import ytarchive
 from log import log
+from args import get_args
 
 
 def create_directory(filepath):
@@ -77,7 +78,8 @@ def session_file_extension(session_file_type):
         'minutes': 'html',
         'cuepoints': 'srt',
         'captions': 'srt',
-        'video': 'mp4'}
+        'video': 'mp4',
+        'packet': 'pdf'}
     type_extension = types[session_file_type]
     return type_extension
 
@@ -140,8 +142,13 @@ def hash_session_files(session, downloaded_session_files):
 
 
 def process():
+    site_id = None
+    args = get_args()
+    if 'site_id' in args:
+        site_id = args.site_id
+
     """Download files and metadata for the oldest updated session"""
-    updated_session = ytarchive().sessionsGetChangedOldest()
+    updated_session = ytarchive().sessionsGetChangedOldest(site_id)
 
     if updated_session:
         ytarchive().sessionsUpdate({'id': updated_session.id, 'state': c.SESSION_FETCHING})
