@@ -65,8 +65,8 @@ def cleanup_files(session):
 def validate():
     site_id = None
     args = get_args()
-    if 'site_id' in args and args.site_id:
-        site_id = args.site_id
+    if 'site' in args and args.site:
+        site_id = args.site
 
     """Check all synced files to make sure their md5 hash matches the hash
     stored on Archive.org"""

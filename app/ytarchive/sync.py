@@ -256,8 +256,8 @@ def session_archive_id(session):
 def sync():
     args = get_args()
 
-    if 'site_id' in args and args.site_id:
-        session = ytarchive().sessionsGet(id=None, params={'state': c.SESSION_PROCESSED, 'site_id': args.site_id, 'sort': 'last_updated:asc', 'limit': 1})
+    if 'site' in args and args.site:
+        session = ytarchive().sessionsGet(id=None, params={'state': c.SESSION_PROCESSED, 'site_id': args.site, 'sort': 'last_updated:asc', 'limit': 1})
     else:
         session = ytarchive().sessionsGet(id=None, params={'state': c.SESSION_PROCESSED, 'sort': 'last_updated:asc', 'limit': 1})
 

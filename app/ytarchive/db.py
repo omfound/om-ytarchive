@@ -41,12 +41,12 @@ class ytarchive():
     def sessionsGetChangedOldest(self, site_id=None):
         query = self.db.query(Session)
         query = query.filter(or_(Session.state == c.SESSION_NEW, Session.state == c.SESSION_CHANGED))
-        query = query.order_by(getattr(Session, 'last_updated').asc())
-        query = query.limit(1)
 
         if site_id:
             query = query.filter(Session.site_id == site_id)
 
+        query = query.order_by(getattr(Session, 'last_updated').asc())
+        query = query.limit(1)
         results = query.first()
         self.db.close()
         return results
@@ -55,12 +55,12 @@ class ytarchive():
         query = self.db.query(Session)
         query = query.filter(or_(Session.state == c.SESSION_SYNCED, Session.state == c.SESSION_DELETED))
         query = query.filter(Session.validated == 0)
-        query = query.order_by(getattr(Session, 'last_updated').asc())
-        query = query.limit(1)
 
         if site_id:
             query = query.filter(Session.site_id == site_id)
 
+        query = query.order_by(getattr(Session, 'last_updated').asc())
+        query = query.limit(1)
         results = query.first()
         self.db.close()
         return results

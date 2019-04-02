@@ -79,7 +79,8 @@ def session_file_extension(session_file_type):
         'cuepoints': 'srt',
         'captions': 'srt',
         'video': 'mp4',
-        'packet': 'pdf'}
+        'packet': 'pdf',
+        'other': 'pdf'}
     type_extension = types[session_file_type]
     return type_extension
 
@@ -144,8 +145,8 @@ def hash_session_files(session, downloaded_session_files):
 def process():
     site_id = None
     args = get_args()
-    if 'site_id' in args:
-        site_id = args.site_id
+    if 'site' in args and args.site:
+        site_id = args.site
 
     """Download files and metadata for the oldest updated session"""
     updated_session = ytarchive().sessionsGetChangedOldest(site_id)

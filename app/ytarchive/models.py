@@ -60,6 +60,6 @@ class CuepointFile():
 class DocumentFile():
     def __init__(self, session, document):
         self.session_id = session.id
-        self.id = "doc-" + document['type'].lower() + str(document['id'])
+        self.id = "doc-" + document['type'].lower() + "-" + str(document['id'])
         self.url = document['url']
         self.type = document['type']
