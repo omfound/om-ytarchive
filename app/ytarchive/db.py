@@ -272,7 +272,10 @@ class ytarchive():
                 column = getattr(Model, key, None)
                 values = self.getValues(params, raw_key)
                 if len(values) > 1:
-                    query = query.filter(getattr(Model, key).in_(values))
+                    if op == 'ne':
+                        query = query.filter(getattr(Model, key).notin_(values))
+                    else:
+                        query = query.filter(getattr(Model, key).in_(values))
                 else:
                     attr = self.getFilterAttr(column, op)
                     filt = getattr(column, attr)(values)
@@ -290,6 +293,11 @@ class ytarchive():
             values = params.getlist(key)
         else:
             values = [params[key]]
+
+        if len(values) == 1:
+            if ',' in values[0]:
+                values = values[0].split(',')
+
         return values
 
     def getFilterAttr(self, column, op):
