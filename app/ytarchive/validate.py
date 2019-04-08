@@ -7,6 +7,7 @@ from db import ytarchive
 from os import path
 import shutil
 from args import get_args
+import time
 
 
 def validate_files(session_files, archive_info):
@@ -73,17 +74,21 @@ def validate():
     synced_session = ytarchive().sessionsGetSyncedOldest(site_id)
 
     if synced_session:
-        archive_info = get_item(synced_session.archive_id)
-        session_files = ytarchive().filesGetSynced(synced_session.id)
-        valid = validate_files(session_files, archive_info)
+        session_log = ytarchive().logsGetSynced(synced_session.id)
+        validation_time = time.time() - (60 * 60)
 
-        if valid:
-            ytarchive().sessionsUpdate({'id': synced_session.id, 'validated': True})
-            log(synced_session, "Session files validated", c.SESSION_SYNCED)
-            cleanup_files(synced_session)
-        else:
-            ytarchive().sessionsUpdate({'id': synced_session.id, 'state': c.SESSION_FAILED, 'validated': False})
-            log(synced_session, "Session files failed validation", c.SESSION_FAILED, c.LOG_ERROR)
+        if session_log and session_log.time < validation_time:
+            archive_info = get_item(synced_session.archive_id)
+            session_files = ytarchive().filesGetSynced(synced_session.id)
+            valid = validate_files(session_files, archive_info)
+
+            if valid:
+                ytarchive().sessionsUpdate({'id': synced_session.id, 'validated': True})
+                log(synced_session, "Session files validated", c.SESSION_SYNCED)
+                cleanup_files(synced_session)
+            else:
+                ytarchive().sessionsUpdate({'id': synced_session.id, 'state': c.SESSION_FAILED, 'validated': False})
+                log(synced_session, "Session files failed validation", c.SESSION_FAILED, c.LOG_ERROR)
 
 
 validate()

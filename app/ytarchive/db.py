@@ -208,6 +208,15 @@ class ytarchive():
         self.db.close()
         return results
 
+    def logsGetSynced(self, session_id):
+        query = self.db.query(Log)
+        query = query.filter(Log.session_id == session_id)
+        query = query.filter(Log.state == c.SESSION_SYNCED)
+        query = query.filter(Log.file_id == None)  # noqa: E711
+        result = query.first()
+        self.db.close()
+        return result
+
     def logsInsert(self, records):
         multiple = True
         if not isinstance(records, (list,)):
@@ -254,7 +263,10 @@ class ytarchive():
         self.logsDelete()
 
     def addParams(self, query, Model, params):
-        for key in params:
+        for raw_key in params:
+            key_parts = self.getKeyParts(raw_key)
+            key = key_parts['key']
+
             if hasattr(Model, key):
                 if "getlist" in dir(params):
                     values = params.getlist(key)
@@ -268,6 +280,21 @@ class ytarchive():
             else:
                 raise ValueError("Unknown query parameter: " + key)
         return query
+
+    def getKeyParts(self, key):
+        processed_key = {'key': key, 'operator': '='}
+        operators = {
+            'lt': '<',
+            'lte': '<=',
+            'gt': '>',
+            'gte': '>=',
+            'eq': '=='}
+
+        if ':' in key:
+            parts = key.split(':')
+            if parts[1] in operators:
+                processed_key['operator'] = operators[parts[1]]
+        return processed_key
 
     def addLimit(self, query, Model, params):
         value = params.get('limit')
