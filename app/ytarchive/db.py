@@ -266,13 +266,17 @@ class ytarchive():
         for raw_key in params:
             key_parts = self.getKeyParts(raw_key)
             key = key_parts['key']
+            op = key_parts['op']
 
             if hasattr(Model, key):
-                if "getlist" in dir(params):
-                    values = params.getlist(key)
+                column = getattr(Model, key, None)
+                values = self.getValues(params, raw_key)
+                if len(values) > 1:
+                    query = query.filter(getattr(Model, key).in_(values))
                 else:
-                    values = [params[key]]
-                query = query.filter(getattr(Model, key).in_(values))
+                    attr = self.getFilterAttr(column, op)
+                    filt = getattr(column, attr)(values)
+                    query = query.filter(filt)
             elif 'sort' in key:
                 query = self.addSort(query, Model, params)
             elif key == 'limit':
@@ -281,19 +285,31 @@ class ytarchive():
                 raise ValueError("Unknown query parameter: " + key)
         return query
 
+    def getValues(self, params, key):
+        if "getlist" in dir(params):
+            values = params.getlist(key)
+        else:
+            values = [params[key]]
+        return values
+
+    def getFilterAttr(self, column, op):
+        try:
+            attr = next(filter(
+                lambda e: hasattr(column, e % op),
+                ['%s', '%s_', '__%s__']
+            )) % op
+        except StopIteration:
+            raise ValueError('Invalid filter operator: %s' % op)
+        return attr
+
     def getKeyParts(self, key):
-        processed_key = {'key': key, 'operator': '='}
-        operators = {
-            'lt': '<',
-            'lte': '<=',
-            'gt': '>',
-            'gte': '>=',
-            'eq': '=='}
+        processed_key = {'key': key, 'op': 'eq'}
 
         if ':' in key:
             parts = key.split(':')
-            if parts[1] in operators:
-                processed_key['operator'] = operators[parts[1]]
+            if parts[1]:
+                processed_key['key'] = parts[0]
+                processed_key['op'] = parts[1]
         return processed_key
 
     def addLimit(self, query, Model, params):
