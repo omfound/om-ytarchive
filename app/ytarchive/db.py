@@ -295,7 +295,7 @@ class ytarchive():
             values = [params[key]]
 
         if len(values) == 1:
-            if ',' in values[0]:
+            if ',' in str(values[0]):
                 values = values[0].split(',')
 
         return values

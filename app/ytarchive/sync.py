@@ -41,8 +41,9 @@ def finish_unchanged_files(archive_info, files):
 
     for key, file in enumerate(files):
         for archive_file in archive_info.item_metadata["files"]:
-            if file["md5"] == archive_file["md5"]:
-                remove_files.append(file)
+            if hasattr(file, 'md5'):
+                if file.md5 == archive_file['md5']:
+                    remove_files.append(file)
 
     for remove_file in remove_files:
         update_file_status(remove_file, c.SESSION_SYNCED)
@@ -212,10 +213,10 @@ def archive_update(archive_id, session, session_files, archive_info=False):
     if not session.archive_id and files:
         success = archive_create(archive_id, files, metadata, session, session_files)
     elif session.archive_id:
-        if metadata_changed(metadata, archive_info, session):
-            success = archive_update_metadata(archive_id, metadata)
+        if metadata_changed(metadata, archive_info):
+            success = archive_update_metadata(archive_id, metadata, session)
         if files:
-            success = archive_update_files(archive_id, files, metadata, session, session_files, archive_item_created=True)
+            success = archive_create(archive_id, files, metadata, session, session_files, archive_item_created=True)
     return success
 
 
