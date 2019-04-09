@@ -20,3 +20,8 @@ services:
       - ./db.env
     volumes:
       - ./db:/docker-entrypoint-initdb.d/:ro
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8080:80"
